@@ -77,11 +77,17 @@
 
         let state = { tiles: Array(100).fill({ owner: null, hasChicken: false, isLocked: false }), teamMapState: {}, logs: [], history: [], isChickenMode: false, timerSeconds: 14400, isTimerRunning: false };
 
+        // 주아님께서 요청하신 수정된 onSnapshot 부분
         db.collection("game").doc("bingoData").onSnapshot((doc) => {
-            if (doc.exists) {
-                state = doc.data();
-                window.render();
-            } else {
+            try {
+                if (doc.exists) {
+                    state = doc.data();
+                    window.render();
+                } else {
+                    window.initDefaultState();
+                }
+            } catch (e) {
+                console.error("데이터 로드 오류, 초기화합니다:", e);
                 window.initDefaultState();
             }
         });

@@ -77,7 +77,14 @@
 
         let state = { tiles: Array(100).fill({ owner: null, hasChicken: false, isLocked: false }), teamMapState: {}, logs: [], history: [], isChickenMode: false, timerSeconds: 14400, isTimerRunning: false };
 
-        // 주아님께서 요청하신 수정된 onSnapshot 부분
+        // 1. 타이머 실행 로직 (1초마다 state 갱신)
+        setInterval(() => {
+            if (state.isTimerRunning && state.timerSeconds > 0) {
+                state.timerSeconds--;
+                window.render();
+            }
+        }, 1000);
+
         db.collection("game").doc("bingoData").onSnapshot((doc) => {
             try {
                 if (doc.exists) {
@@ -87,7 +94,7 @@
                     window.initDefaultState();
                 }
             } catch (e) {
-                console.error("데이터 로드 오류, 초기화합니다:", e);
+                console.error("데이터 로드 오류:", e);
                 window.initDefaultState();
             }
         });
@@ -95,13 +102,8 @@
         window.saveState = () => { db.collection("game").doc("bingoData").set(JSON.parse(JSON.stringify(state))); };
 
         window.initDefaultState = () => {
-            state = {
-                tiles: Array(100).fill(null).map(() => ({ owner: null, hasChicken: false, isLocked: false })),
-                teamMapState: {}, isChickenMode: false, logs: [], history: [], timerSeconds: 14400, isTimerRunning: false
-            };
-            Object.keys(window.TEAMS).forEach(t => {
-                state.teamMapState[t] = { maps: [...MAP_LIST].sort(() => Math.random() - 0.5), index: 0 };
-            });
+            state = { tiles: Array(100).fill(null).map(() => ({ owner: null, hasChicken: false, isLocked: false })), teamMapState: {}, isChickenMode: false, logs: [], history: [], timerSeconds: 14400, isTimerRunning: false };
+            Object.keys(window.TEAMS).forEach(t => { state.teamMapState[t] = { maps: [...MAP_LIST].sort(() => Math.random() - 0.5), index: 0 }; });
             window.saveState();
         };
 
@@ -109,6 +111,11 @@
             state.history.push(JSON.stringify(state.tiles));
             state.tiles[idx] = { owner: document.getElementById("teamSelect").value, hasChicken: state.isChickenMode, isLocked: false };
             state.logs.unshift({ time: new Date().toLocaleTimeString().slice(0, 8), msg: `${document.getElementById("memberSelect").value}님이 ${idx + 1}번 점령!` });
+            
+            // 2. 치킨모드 자동 해제
+            state.isChickenMode = false;
+            document.getElementById("chickenBtn").classList.remove("bg-yellow-500");
+            
             window.saveState();
         };
 
@@ -150,7 +157,11 @@
             const team = document.getElementById("teamSelect").value; 
             document.getElementById("memberSelect").innerHTML = window.TEAMS[team].members.map(m => `<option value="${m}">${m}</option>`).join(''); 
         };
-        window.toggleChicken = () => { state.isChickenMode = !state.isChickenMode; window.render(); };
+        window.toggleChicken = () => { 
+            state.isChickenMode = !state.isChickenMode; 
+            document.getElementById("chickenBtn").classList.toggle("bg-yellow-500", state.isChickenMode);
+            window.render(); 
+        };
         window.rotateMap = (t) => { state.teamMapState[t].index = (state.teamMapState[t].index + 1) % 5; window.saveState(); };
         window.undoMove = () => { if(state.history.length > 0) { state.tiles = JSON.parse(state.history.pop()); window.saveState(); } };
         window.resetBoard = () => { if(confirm("초기화할까요?")) window.initDefaultState(); };

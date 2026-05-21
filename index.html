@@ -61,14 +61,7 @@
     </div>
 
     <script>
-        const firebaseConfig = {
-            apiKey: "AizaSyD-rLRddJFNBzLKCua62yduQmhRPYczis8",
-            authDomain: "bingo-9953d.firebaseapp.com",
-            projectId: "bingo-9953d",
-            storageBucket: "bingo-9953d.appspot.com",
-            messagingSenderId: "550809736051",
-            appId: "1:550809736051:web:86f22b238585ea01c1eb06"
-        };
+        const firebaseConfig = { apiKey: "AizaSyD-rLRddJFNBzLKCua62yduQmhRPYczis8", authDomain: "bingo-9953d.firebaseapp.com", projectId: "bingo-9953d", storageBucket: "bingo-9953d.appspot.com", messagingSenderId: "550809736051", appId: "1:550809736051:web:86f22b238585ea01c1eb06" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
@@ -81,9 +74,8 @@
             JUJU: { name: "쥬쥬팀", color: "bg-pink-500", border: "border-pink-500", members: ["아이엠쥬노", "한초월", "도라니", "앙단테"] }
         };
         const MAP_LIST = ["에란겔", "사녹", "테이고", "비켄디", "카라킨"];
-        const TIMER_DURATION = 14400;
 
-        let state = { tiles: Array(100).fill({ owner: null, hasChicken: false, isLocked: false }), teamMapState: {}, logs: [], history: [], isChickenMode: false, timerSeconds: TIMER_DURATION, isTimerRunning: false };
+        let state = { tiles: Array(100).fill({ owner: null, hasChicken: false, isLocked: false }), teamMapState: {}, logs: [], history: [], isChickenMode: false, timerSeconds: 14400, isTimerRunning: false };
 
         db.collection("game").doc("bingoData").onSnapshot((doc) => {
             if (doc.exists) {
@@ -94,26 +86,21 @@
             }
         });
 
-        window.saveState = function() { db.collection("game").doc("bingoData").set(state); };
+        window.saveState = () => { db.collection("game").doc("bingoData").set(JSON.parse(JSON.stringify(state))); };
 
-        window.initDefaultState = function() {
+        window.initDefaultState = () => {
             state = {
                 tiles: Array(100).fill(null).map(() => ({ owner: null, hasChicken: false, isLocked: false })),
-                teamMapState: {},
-                isChickenMode: false,
-                logs: [],
-                history: [],
-                timerSeconds: TIMER_DURATION,
-                isTimerRunning: false
+                teamMapState: {}, isChickenMode: false, logs: [], history: [], timerSeconds: 14400, isTimerRunning: false
             };
             Object.keys(window.TEAMS).forEach(t => {
                 state.teamMapState[t] = { maps: [...MAP_LIST].sort(() => Math.random() - 0.5), index: 0 };
             });
             window.saveState();
-        }
+        };
 
         window.handleTileClick = (idx) => {
-            state.history.push(JSON.parse(JSON.stringify(state.tiles)));
+            state.history.push(JSON.stringify(state.tiles));
             state.tiles[idx] = { owner: document.getElementById("teamSelect").value, hasChicken: state.isChickenMode, isLocked: false };
             state.logs.unshift({ time: new Date().toLocaleTimeString().slice(0, 8), msg: `${document.getElementById("memberSelect").value}님이 ${idx + 1}번 점령!` });
             window.saveState();
@@ -132,6 +119,7 @@
             document.getElementById("logList").innerHTML = state.logs.map(l => `<div class="mb-1 border-b border-gray-700 pb-1 text-gray-200"><span class="text-gray-500 font-mono">[${l.time}]</span> ${l.msg}</div>`).join('');
             document.getElementById("timerDisplay").innerText = window.formatTime(state.timerSeconds);
             document.getElementById("timerCtrlBtn").innerText = state.isTimerRunning ? "정지" : "시작";
+            
             const scores = {};
             state.tiles.forEach(t => t.owner && (scores[t.owner] = (scores[t.owner]||0)+1));
             document.getElementById("scoreboard").innerHTML = Object.keys(window.TEAMS).map(k => `
@@ -140,6 +128,7 @@
                     <span class="font-black text-yellow-400 text-lg">${scores[k]||0}</span>
                 </div>
             `).join('');
+
             document.getElementById("mapList").innerHTML = Object.keys(window.TEAMS).map(t => `
                 <div class="bg-gray-800 p-2 rounded flex justify-between items-center border-l-4 ${window.TEAMS[t].border}">
                     <span class="text-sm font-bold text-gray-100">${window.TEAMS[t].name}</span>
@@ -157,10 +146,10 @@
         };
         window.toggleChicken = () => { state.isChickenMode = !state.isChickenMode; window.render(); };
         window.rotateMap = (t) => { state.teamMapState[t].index = (state.teamMapState[t].index + 1) % 5; window.saveState(); };
-        window.undoMove = () => { if(state.history.length > 0) { state.tiles = state.history.pop(); window.saveState(); } };
-        window.resetBoard = () => { if(confirm("초기화?")) window.initDefaultState(); };
+        window.undoMove = () => { if(state.history.length > 0) { state.tiles = JSON.parse(state.history.pop()); window.saveState(); } };
+        window.resetBoard = () => { if(confirm("초기화할까요?")) window.initDefaultState(); };
         window.toggleTimer = () => { state.isTimerRunning = !state.isTimerRunning; window.saveState(); };
-        window.resetTimer = () => { state.timerSeconds = TIMER_DURATION; window.saveState(); };
+        window.resetTimer = () => { state.timerSeconds = 14400; window.saveState(); };
         window.formatTime = (s) => {
             const h = Math.floor(s / 3600).toString().padStart(2, '0');
             const m = Math.floor((s % 3600) / 60).toString().padStart(2, '0');

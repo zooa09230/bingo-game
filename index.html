@@ -49,7 +49,7 @@
                     </div>
                 </div>
                 <div class="bg-gray-900 p-4 rounded-xl border border-gray-800">
-                    <h2 class="text-sm font-bold text-yellow-400 mb-2">🏆 점수판</h2>
+                    <h2 class="text-sm font-bold text-yellow-400 mb-2">🏆 점수판 (자동 정렬)</h2>
                     <div id="scoreboard" class="text-sm space-y-1"></div>
                 </div>
                 <div class="bg-gray-900 p-4 rounded-xl border border-gray-800">
@@ -78,10 +78,8 @@
         let state = { tiles: Array(100).fill({ owner: null, hasChicken: false, isLocked: false }), teamMapState: {}, logs: [], history: [], isChickenMode: false, timerSeconds: 14400, isTimerRunning: false };
 
         window.addLog = (msg) => { state.logs.unshift({ time: new Date().toLocaleTimeString().slice(0, 8), msg }); };
-
-        setInterval(() => {
-            if (state.isTimerRunning && state.timerSeconds > 0) { state.timerSeconds--; window.render(); }
-        }, 1000);
+        
+        setInterval(() => { if (state.isTimerRunning && state.timerSeconds > 0) { state.timerSeconds--; window.render(); } }, 1000);
 
         db.collection("game").doc("bingoData").onSnapshot((doc) => {
             try { if (doc.exists) { state = doc.data(); window.render(); } else { window.initDefaultState(); } } catch (e) { window.initDefaultState(); }
@@ -101,7 +99,6 @@
             for (let i = 0; i < 10; i++) lines.push(Array.from({length: 10}, (_, j) => j * 10 + i));
             lines.push(Array.from({length: 10}, (_, i) => i * 10 + i));
             lines.push(Array.from({length: 10}, (_, i) => i * 10 + (9 - i)));
-
             lines.forEach(line => {
                 const firstTile = state.tiles[line[0]];
                 if (firstTile.owner && !firstTile.isLocked && line.every(idx => state.tiles[idx].owner === firstTile.owner)) {
@@ -116,35 +113,21 @@
             const teamKey = document.getElementById("teamSelect").value;
             const memberName = document.getElementById("memberSelect").value;
             const prevOwner = state.tiles[idx].owner;
-            
             state.history.push(JSON.stringify(state.tiles));
-            
             const chickenStr = state.isChickenMode ? " (치킨 버프로)" : "";
             state.tiles[idx] = { owner: teamKey, hasChicken: state.isChickenMode, isLocked: false };
-            
             let logMsg = `${memberName}님이 ${idx + 1}번 땅을 점령했습니다${chickenStr}`;
             if (prevOwner && prevOwner !== teamKey) logMsg += ` (${window.TEAMS[prevOwner].name} 땅 탈취)`;
             window.addLog(logMsg);
-            
             checkBingo();
             state.isChickenMode = false;
             document.getElementById("chickenBtn").classList.remove("bg-yellow-500");
             window.saveState();
         };
 
-        window.rotateMap = (t) => { 
-            state.teamMapState[t].index = (state.teamMapState[t].index + 1) % 5; 
-            window.addLog(`🗺️ ${window.TEAMS[t].name} 맵 변경: ${state.teamMapState[t].maps[state.teamMapState[t].index]}`);
-            window.saveState(); 
-        };
+        window.rotateMap = (t) => { state.teamMapState[t].index = (state.teamMapState[t].index + 1) % 5; window.addLog(`🗺️ ${window.TEAMS[t].name} 맵 변경: ${state.teamMapState[t].maps[state.teamMapState[t].index]}`); window.saveState(); };
 
-        window.undoMove = () => { 
-            if(state.history.length > 0) { 
-                state.tiles = JSON.parse(state.history.pop()); 
-                window.addLog(`↩ ${document.getElementById("memberSelect").value}님에 의해 마지막 동작 되돌림`);
-                window.saveState(); 
-            } 
-        };
+        window.undoMove = () => { if(state.history.length > 0) { state.tiles = JSON.parse(state.history.pop()); window.addLog(`↩ ${document.getElementById("memberSelect").value}님에 의해 마지막 동작 되돌림`); window.saveState(); } };
 
         window.render = () => {
             const board = document.getElementById("board"); board.innerHTML = "";
@@ -158,12 +141,13 @@
             document.getElementById("logList").innerHTML = state.logs.map(l => `<div class="mb-1 border-b border-gray-700 pb-1"><span class="text-gray-500 font-mono">[${l.time}]</span> ${l.msg}</div>`).join('');
             document.getElementById("timerDisplay").innerText = window.formatTime(state.timerSeconds);
             document.getElementById("timerCtrlBtn").innerText = state.isTimerRunning ? "정지" : "시작";
-            // ... (하단 렌더링 로직은 동일)
+            
             const scores = {}; state.tiles.forEach(t => t.owner && (scores[t.owner] = (scores[t.owner]||0)+1));
-            document.getElementById("scoreboard").innerHTML = Object.keys(window.TEAMS).map(k => `<div class="flex justify-between px-3 py-2 bg-gray-800 rounded mb-1"><span class="font-bold">${window.TEAMS[k].name}</span><span class="font-black text-yellow-400">${scores[k]||0}</span></div>`).join('');
+            const sortedTeams = Object.keys(window.TEAMS).sort((a, b) => (scores[b]||0) - (scores[a]||0));
+            document.getElementById("scoreboard").innerHTML = sortedTeams.map(k => `<div class="flex justify-between px-3 py-2 bg-gray-800 rounded mb-1 border border-gray-700"><span class="font-bold text-white">${window.TEAMS[k].name}</span><span class="font-black text-yellow-400">${scores[k]||0}점</span></div>`).join('');
+            
             document.getElementById("mapList").innerHTML = Object.keys(window.TEAMS).map(t => `<div class="bg-gray-800 p-2 rounded flex justify-between items-center border-l-4 ${window.TEAMS[t].border} mb-1"><span class="text-sm font-bold">${window.TEAMS[t].name}</span><div class="flex gap-2"><span class="font-black text-yellow-300">${state.teamMapState[t]?.maps?.[state.teamMapState[t]?.index]}</span><button onclick="window.rotateMap('${t}')">🔄</button></div></div>`).join('');
         };
-        // (나머지 도우미 함수들 생략 가능 - 기존과 동일)
         window.updateMemberSelect = () => { const team = document.getElementById("teamSelect").value; document.getElementById("memberSelect").innerHTML = window.TEAMS[team].members.map(m => `<option value="${m}">${m}</option>`).join(''); };
         window.toggleChicken = () => { state.isChickenMode = !state.isChickenMode; document.getElementById("chickenBtn").classList.toggle("bg-yellow-500", state.isChickenMode); window.render(); };
         window.resetBoard = () => { if(confirm("초기화할까요?")) window.initDefaultState(); };

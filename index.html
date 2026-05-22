@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>방송용 실시간 빙고 땅따먹기 판</title>
+    <title>주파수 크루 땅따먹기 컨텐츠</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -22,15 +22,14 @@
     <div class="max-w-6xl mx-auto space-y-4">
         <header class="flex flex-wrap justify-between items-center bg-gray-900 p-4 rounded-xl border border-gray-800 shadow-xl gap-4">
             <div>
-                <h1 class="text-2xl font-black italic text-yellow-400 tracking-tight">BINGO LAND</h1>
-                <div id="statusTag" class="text-xs text-gray-400">실시간 땅따먹기 관제판</div>
+                <h1 class="text-2xl font-black italic text-yellow-400 tracking-tight">주파수 크루 땅따먹기 컨텐츠</h1>
             </div>
             <div class="flex flex-wrap gap-2">
                 <select id="teamSelect" onchange="window.updateMemberSelect()" class="bg-gray-800 p-2 rounded text-sm font-bold border border-gray-700 text-white"></select>
                 <select id="memberSelect" class="bg-gray-800 p-2 rounded text-sm font-bold border border-gray-700 text-white"></select>
                 <button id="chickenBtn" onclick="window.toggleChicken()" class="px-4 py-2 rounded-lg border text-sm font-black transition-all">🍗 치킨모드</button>
                 <button onclick="window.resetBoard()" class="bg-red-900 hover:bg-red-800 px-4 py-2 rounded-lg text-sm font-black text-white border border-red-700">전체 초기화</button>
-                <button onclick="window.undoMove()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-sm font-black text-white">↩ Undo</button>
+                <button onclick="window.undoMove()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-sm font-black text-white">↩ 팀별 Undo</button>
             </div>
         </header>
 
@@ -75,21 +74,23 @@
         };
         const MAP_LIST = ["에란겔", "사녹", "테이고", "비켄디", "카라킨"];
 
-        let state = { tiles: Array(100).fill({ owner: null, hasChicken: false, isLocked: false }), teamMapState: {}, logs: [], history: [], isChickenMode: false, timerSeconds: 14400, isTimerRunning: false };
+        let state = { tiles: Array(100).fill({ owner: null, hasChicken: false, isLocked: false }), teamMapState: {}, logs: [], teamHistory: {}, isChickenMode: false, timerSeconds: 14400, isTimerRunning: false };
 
         window.addLog = (msg) => { state.logs.unshift({ time: new Date().toLocaleTimeString().slice(0, 8), msg }); };
-        
         setInterval(() => { if (state.isTimerRunning && state.timerSeconds > 0) { state.timerSeconds--; window.render(); } }, 1000);
 
         db.collection("game").doc("bingoData").onSnapshot((doc) => {
-            try { if (doc.exists) { state = doc.data(); window.render(); } else { window.initDefaultState(); } } catch (e) { window.initDefaultState(); }
+            if (doc.exists) { state = doc.data(); window.render(); } else { window.initDefaultState(); }
         });
 
         window.saveState = () => { db.collection("game").doc("bingoData").set(JSON.parse(JSON.stringify(state))); };
 
         window.initDefaultState = () => {
-            state = { tiles: Array(100).fill(null).map(() => ({ owner: null, hasChicken: false, isLocked: false })), teamMapState: {}, isChickenMode: false, logs: [], history: [], timerSeconds: 14400, isTimerRunning: false };
-            Object.keys(window.TEAMS).forEach(t => { state.teamMapState[t] = { maps: [...MAP_LIST].sort(() => Math.random() - 0.5), index: 0 }; });
+            state = { tiles: Array(100).fill(null).map(() => ({ owner: null, hasChicken: false, isLocked: false })), teamMapState: {}, teamHistory: {}, isChickenMode: false, logs: [], timerSeconds: 14400, isTimerRunning: false };
+            Object.keys(window.TEAMS).forEach(t => { 
+                state.teamMapState[t] = { maps: [...MAP_LIST].sort(() => Math.random() - 0.5), index: 0 };
+                state.teamHistory[t] = [];
+            });
             window.saveState();
         };
 
@@ -112,22 +113,32 @@
             if (state.tiles[idx].isLocked) return;
             const teamKey = document.getElementById("teamSelect").value;
             const memberName = document.getElementById("memberSelect").value;
-            const prevOwner = state.tiles[idx].owner;
-            state.history.push(JSON.stringify(state.tiles));
-            const chickenStr = state.isChickenMode ? " (치킨 버프로)" : "";
+            
+            if (!state.teamHistory[teamKey]) state.teamHistory[teamKey] = [];
+            state.teamHistory[teamKey].push(idx);
+            
             state.tiles[idx] = { owner: teamKey, hasChicken: state.isChickenMode, isLocked: false };
-            let logMsg = `${memberName}님이 ${idx + 1}번 땅을 점령했습니다${chickenStr}`;
-            if (prevOwner && prevOwner !== teamKey) logMsg += ` (${window.TEAMS[prevOwner].name} 땅 탈취)`;
-            window.addLog(logMsg);
+            window.addLog(`${memberName}님이 ${idx + 1}번 땅 점령`);
+            
             checkBingo();
             state.isChickenMode = false;
             document.getElementById("chickenBtn").classList.remove("bg-yellow-500");
             window.saveState();
         };
 
-        window.rotateMap = (t) => { state.teamMapState[t].index = (state.teamMapState[t].index + 1) % 5; window.addLog(`🗺️ ${window.TEAMS[t].name} 맵 변경: ${state.teamMapState[t].maps[state.teamMapState[t].index]}`); window.saveState(); };
+        window.undoMove = () => {
+            const teamKey = document.getElementById("teamSelect").value;
+            if (state.teamHistory[teamKey] && state.teamHistory[teamKey].length > 0) {
+                const lastIdx = state.teamHistory[teamKey].pop();
+                if (!state.tiles[lastIdx].isLocked) {
+                    state.tiles[lastIdx] = { owner: null, hasChicken: false, isLocked: false };
+                    window.addLog(`↩ ${window.TEAMS[teamKey].name} 점령 취소 (${lastIdx + 1}번)`);
+                    window.saveState();
+                } else { alert("빙고된 땅은 취소할 수 없습니다."); }
+            } else { alert("해당 팀의 되돌릴 기록이 없습니다."); }
+        };
 
-        window.undoMove = () => { if(state.history.length > 0) { state.tiles = JSON.parse(state.history.pop()); window.addLog(`↩ ${document.getElementById("memberSelect").value}님에 의해 마지막 동작 되돌림`); window.saveState(); } };
+        window.rotateMap = (t) => { state.teamMapState[t].index = (state.teamMapState[t].index + 1) % 5; window.saveState(); };
 
         window.render = () => {
             const board = document.getElementById("board"); board.innerHTML = "";
@@ -145,7 +156,6 @@
             const scores = {}; state.tiles.forEach(t => t.owner && (scores[t.owner] = (scores[t.owner]||0)+1));
             const sortedTeams = Object.keys(window.TEAMS).sort((a, b) => (scores[b]||0) - (scores[a]||0));
             document.getElementById("scoreboard").innerHTML = sortedTeams.map(k => `<div class="flex justify-between px-3 py-2 bg-gray-800 rounded mb-1 border border-gray-700"><span class="font-bold text-white">${window.TEAMS[k].name}</span><span class="font-black text-yellow-400">${scores[k]||0}점</span></div>`).join('');
-            
             document.getElementById("mapList").innerHTML = Object.keys(window.TEAMS).map(t => `<div class="bg-gray-800 p-2 rounded flex justify-between items-center border-l-4 ${window.TEAMS[t].border} mb-1"><span class="text-sm font-bold">${window.TEAMS[t].name}</span><div class="flex gap-2"><span class="font-black text-yellow-300">${state.teamMapState[t]?.maps?.[state.teamMapState[t]?.index]}</span><button onclick="window.rotateMap('${t}')">🔄</button></div></div>`).join('');
         };
         window.updateMemberSelect = () => { const team = document.getElementById("teamSelect").value; document.getElementById("memberSelect").innerHTML = window.TEAMS[team].members.map(m => `<option value="${m}">${m}</option>`).join(''); };

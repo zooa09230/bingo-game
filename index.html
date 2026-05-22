@@ -66,9 +66,9 @@
 
         window.TEAMS = {
             JUA: { name: "주아팀", color: "bg-green-500", border: "border-green-500", members: ["연주아", "치포", "복히", "루하"] },
-            REX: { name: "렉스팀", color: "bg-orange-500", border: "border-orange-500", members: ["렉스", "치명적여사", "반히", "오따식"] },
+            REX: { name: "렉스팀", color: "bg-orange-500", border: "border-orange-500", members: ["렉스", "치명적여사", "잭잭", "오따식"] },
             MIKI: { name: "믹이팀", color: "bg-red-600", border: "border-red-600", members: ["믹", "달님", "처니씨", "현자군"] },
-            DAMHI: { name: "담히팀", color: "bg-sky-500", border: "border-sky-500", members: ["도담히", "깡별", "류헤나", "이티드"] },
+            DAMHI: { name: "담히팀", color: "bg-sky-500", border: "border-sky-500", members: ["도담히", "유매미", "손진석", "이티드"] },
             HARO: { name: "하로팀", color: "bg-yellow-400", border: "border-yellow-400", members: ["나하로", "잉누", "주이짱", "한시아"] },
             JUJU: { name: "쥬쥬팀", color: "bg-pink-500", border: "border-pink-500", members: ["아이엠쥬노", "한초월", "도라니", "앙단테"] }
         };
@@ -94,33 +94,36 @@
             window.saveState();
         };
 
-        function checkBingo() {
-            const lines = [];
-            for (let i = 0; i < 10; i++) lines.push(Array.from({length: 10}, (_, j) => i * 10 + j));
-            for (let i = 0; i < 10; i++) lines.push(Array.from({length: 10}, (_, j) => j * 10 + i));
-            lines.push(Array.from({length: 10}, (_, i) => i * 10 + i));
-            lines.push(Array.from({length: 10}, (_, i) => i * 10 + (9 - i)));
-            lines.forEach(line => {
-                const firstTile = state.tiles[line[0]];
-                if (firstTile.owner && !firstTile.isLocked && line.every(idx => state.tiles[idx].owner === firstTile.owner)) {
-                    line.forEach(idx => state.tiles[idx].isLocked = true);
-                    window.addLog(`🔥 ${window.TEAMS[firstTile.owner].name} 팀 빙고 완성!`);
-                }
-            });
-        }
-
         window.handleTileClick = (idx) => {
             if (state.tiles[idx].isLocked) return;
             const teamKey = document.getElementById("teamSelect").value;
             const memberName = document.getElementById("memberSelect").value;
+            const prev = state.tiles[idx];
             
+            // 기록용 데이터 생성
             if (!state.teamHistory[teamKey]) state.teamHistory[teamKey] = [];
-            state.teamHistory[teamKey].push(idx);
+            state.teamHistory[teamKey].push({ idx, tiles: JSON.stringify(state.tiles) });
+            
+            // 상세 로그 생성
+            let msg = `${memberName}님이 ${idx + 1}번 땅을 점령했습니다`;
+            if (prev.owner && prev.owner !== teamKey) msg += ` (${window.TEAMS[prev.owner].name}의 땅 탈취!)`;
+            if (state.isChickenMode) msg += ` [🍗 치킨 버프]`;
+            window.addLog(msg);
             
             state.tiles[idx] = { owner: teamKey, hasChicken: state.isChickenMode, isLocked: false };
-            window.addLog(`${memberName}님이 ${idx + 1}번 땅 점령`);
             
-            checkBingo();
+            // 빙고 체크
+            const lines = [];
+            for(let i=0; i<10; i++) lines.push(Array.from({length:10},(_,j)=>i*10+j), Array.from({length:10},(_,j)=>j*10+i));
+            lines.push(Array.from({length:10},(_,i)=>i*11), Array.from({length:10},(_,i)=>(i+1)*9));
+            lines.forEach(line => {
+                const first = state.tiles[line[0]];
+                if(first.owner && !first.isLocked && line.every(i => state.tiles[i].owner === first.owner)) {
+                    line.forEach(i => state.tiles[i].isLocked = true);
+                    window.addLog(`🔥 ${window.TEAMS[first.owner].name} 팀 빙고 완성!`);
+                }
+            });
+            
             state.isChickenMode = false;
             document.getElementById("chickenBtn").classList.remove("bg-yellow-500");
             window.saveState();
@@ -128,14 +131,12 @@
 
         window.undoMove = () => {
             const teamKey = document.getElementById("teamSelect").value;
-            if (state.teamHistory[teamKey] && state.teamHistory[teamKey].length > 0) {
-                const lastIdx = state.teamHistory[teamKey].pop();
-                if (!state.tiles[lastIdx].isLocked) {
-                    state.tiles[lastIdx] = { owner: null, hasChicken: false, isLocked: false };
-                    window.addLog(`↩ ${window.TEAMS[teamKey].name} 점령 취소 (${lastIdx + 1}번)`);
-                    window.saveState();
-                } else { alert("빙고된 땅은 취소할 수 없습니다."); }
-            } else { alert("해당 팀의 되돌릴 기록이 없습니다."); }
+            if (state.teamHistory[teamKey]?.length > 0) {
+                const last = state.teamHistory[teamKey].pop();
+                state.tiles = JSON.parse(last.tiles);
+                window.addLog(`↩ ${window.TEAMS[teamKey].name} 행동 취소 (${last.idx + 1}번 복구)`);
+                window.saveState();
+            } else { alert("되돌릴 기록이 없습니다."); }
         };
 
         window.rotateMap = (t) => { state.teamMapState[t].index = (state.teamMapState[t].index + 1) % 5; window.saveState(); };

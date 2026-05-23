@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>주파수 크루 땅따먹기 컨텐츠</title>
+    <title>주파수 크루 땅따먹기</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
@@ -13,7 +13,6 @@
         .tile-btn:hover { transform: scale(1.02); z-index: 10; border-color: #94a3b8; }
         .locked { opacity: 0.6; cursor: not-allowed; border: 4px solid #facc15 !important; background-color: #713f12 !important; }
         ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #1e293b; }
         ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
     </style>
 </head>
@@ -31,18 +30,17 @@
         </header>
 
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div class="md:col-span-3 space-y-4">
+            <div class="md:col-span-3">
                 <div class="grid grid-cols-10 gap-1 bg-gray-900 p-3 rounded-xl aspect-square border border-gray-800 shadow-2xl" id="board"></div>
-                <div class="bg-gray-900 p-4 rounded-xl border border-gray-800 h-48 overflow-y-auto text-xs" id="logList"></div>
+                <div class="bg-gray-900 p-4 rounded-xl border border-gray-800 h-48 overflow-y-auto text-xs mt-4" id="logList"></div>
             </div>
             <div class="space-y-4">
-                <div class="bg-gray-900 p-4 rounded-xl text-center">
+                <div class="bg-gray-900 p-4 rounded-xl text-center border border-gray-800">
                     <h2 class="text-sm font-bold text-yellow-400">⏱️ 게임 타이머</h2>
-                    <div id="timerDisplay" class="text-4xl font-mono font-black py-2">04:00:00</div>
+                    <div id="timerDisplay" class="text-4xl font-mono font-black py-2">00:00:00</div>
                     <button onclick="window.toggleTimer()" id="timerCtrlBtn" class="bg-green-700 px-6 py-2 rounded text-sm font-black text-white">시작</button>
                 </div>
-                <div class="bg-gray-900 p-4 rounded-xl" id="scoreboard"></div>
-                <div class="bg-gray-900 p-4 rounded-xl" id="mapList"></div>
+                <div class="bg-gray-900 p-4 rounded-xl border border-gray-800" id="scoreboard"></div>
             </div>
         </div>
     </div>
@@ -53,57 +51,69 @@
         const db = firebase.firestore();
 
         window.TEAMS = {
-            JUA: { name: "주아팀", color: "bg-green-500", border: "border-green-500", members: ["연주아", "치포", "복히", "루하"] },
-            REX: { name: "렉스팀", color: "bg-orange-500", border: "border-orange-500", members: ["렉스", "치명적여사", "네네르", "오따식"] },
-            MIKI: { name: "믹이팀", color: "bg-red-600", border: "border-red-600", members: ["믹", "달님", "처니씨", "현자군"] },
-            DAMHI: { name: "담히팀", color: "bg-sky-500", border: "border-sky-500", members: ["도담히", "깡별", "류헤나", "이티드"] },
-            HARO: { name: "하로팀", color: "bg-yellow-400", border: "border-yellow-400", members: ["나하로", "잉누", "주이짱", "한시아"] },
-            JUJU: { name: "쥬쥬팀", color: "bg-pink-500", border: "border-pink-500", members: ["아이엠쥬노", "한초월", "도라니", "앙단테"] }
+            JUA: { name: "주아팀", color: "bg-green-500", members: ["연주아", "치포", "복히", "루하"] },
+            REX: { name: "렉스팀", color: "bg-orange-500", members: ["렉스", "치명적여사", "네네르", "오따식"] },
+            MIKI: { name: "믹이팀", color: "bg-red-600", members: ["믹", "달님", "처니씨", "현자군"] },
+            DAMHI: { name: "담히팀", color: "bg-sky-500", members: ["도담히", "깡별", "류헤나", "이티드"] },
+            HARO: { name: "하로팀", color: "bg-yellow-400", members: ["나하로", "잉누", "주이짱", "한시아"] },
+            JUJU: { name: "쥬쥬팀", color: "bg-pink-500", members: ["아이엠쥬노", "한초월", "도라니", "앙단테"] }
         };
 
-        let state = { tiles: Array(100).fill({ owner: null, hasChicken: false, isLocked: false }), teamMapState: {}, logs: [], teamHistory: {}, isChickenMode: false, timerSeconds: 14400, isTimerRunning: false };
+        let state = { tiles: Array(100).fill({ owner: null, hasChicken: false, isLocked: false }), logs: [], teamHistory: {}, isChickenMode: false, timerSeconds: 14400, isTimerRunning: false };
 
-        // 데이터 로드 및 리스너
-        db.collection("game").doc("bingoData").onSnapshot((doc) => {
-            if (doc.exists) {
-                state = doc.data();
-                window.render();
-            }
+        db.collection("game").doc("bingoData").onSnapshot(doc => {
+            if (doc.exists) { state = doc.data(); window.render(); }
         });
 
-        window.saveState = () => {
-            db.collection("game").doc("bingoData").set(state).then(() => window.render());
+        window.render = () => {
+            const board = document.getElementById("board"); board.innerHTML = "";
+            state.tiles.forEach((t, i) => {
+                const btn = document.createElement("button");
+                btn.className = `tile-btn aspect-square flex items-center justify-center font-bold text-xs rounded ${t.owner ? window.TEAMS[t.owner].color : 'bg-gray-800'} ${t.isLocked ? 'locked' : ''}`;
+                btn.innerHTML = t.hasChicken ? "🍗" : (i + 1);
+                btn.onclick = () => window.handleTileClick(i);
+                board.appendChild(btn);
+            });
+            document.getElementById("logList").innerHTML = state.logs.map(l => `<div>[${l.time}] ${l.msg}</div>`).join('');
         };
 
         window.handleTileClick = (idx) => {
-            if (state.tiles[idx].isLocked) return;
             const teamKey = document.getElementById("teamSelect").value;
-            const memberName = document.getElementById("memberSelect").value;
-            const prev = state.tiles[idx];
-
+            const member = document.getElementById("memberSelect").value;
             if (!state.teamHistory[teamKey]) state.teamHistory[teamKey] = [];
-            state.teamHistory[teamKey].push({ idx, tiles: JSON.stringify(state.tiles) });
-
-            let msg = `${memberName}님이 ${idx + 1}번 점령`;
-            if (prev.owner && prev.owner !== teamKey) msg += ` (${window.TEAMS[prev.owner].name} 탈취!)`;
-            state.logs.unshift({ time: new Date().toLocaleTimeString().slice(0, 8), msg });
-            
+            state.teamHistory[teamKey].push(JSON.stringify(state.tiles));
             state.tiles[idx] = { owner: teamKey, hasChicken: state.isChickenMode, isLocked: false };
-            window.saveState();
+            state.logs.unshift({ time: new Date().toLocaleTimeString().slice(0,8), msg: `${member}님이 ${idx+1}번 점령` });
+            db.collection("game").doc("bingoData").set(state);
         };
 
         window.undoMove = () => {
             const teamKey = document.getElementById("teamSelect").value;
             if (state.teamHistory[teamKey]?.length > 0) {
-                const last = state.teamHistory[teamKey].pop();
-                state.tiles = JSON.parse(last.tiles);
-                window.saveState();
+                state.tiles = JSON.parse(state.teamHistory[teamKey].pop());
+                db.collection("game").doc("bingoData").set(state);
             }
         };
 
-        window.render = () => {
-            // 렌더링 로직 (위 코드와 동일하게 유지)
-            // ... (생략)
+        window.updateMemberSelect = () => {
+            const team = document.getElementById("teamSelect").value;
+            document.getElementById("memberSelect").innerHTML = window.TEAMS[team].members.map(m => `<option value="${m}">${m}</option>`).join('');
         };
-        
-        // ... (나머지 필요한 함수들 유지)
+
+        window.resetBoard = () => {
+            if(confirm("정말 초기화하시겠습니까?")) {
+                state.tiles = Array(100).fill({ owner: null, hasChicken: false, isLocked: false });
+                state.teamHistory = {}; state.logs = [];
+                db.collection("game").doc("bingoData").set(state);
+            }
+        };
+
+        window.onload = () => { 
+            document.getElementById("teamSelect").innerHTML = Object.keys(window.TEAMS).map(t => `<option value="${t}">${window.TEAMS[t].name}</option>`).join(''); 
+            window.updateMemberSelect(); 
+        };
+        window.toggleChicken = () => { state.isChickenMode = !state.isChickenMode; document.getElementById("chickenBtn").classList.toggle("bg-yellow-500"); };
+        window.toggleTimer = () => { state.isTimerRunning = !state.isTimerRunning; db.collection("game").doc("bingoData").set(state); };
+    </script>
+</body>
+</html>
